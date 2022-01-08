@@ -22,11 +22,12 @@ fi
 
 # Detect OS
 # $os_version variables aren't always in use, but are kept here for convenience
-if grep -qs "ubuntu" /etc/os-release; then
+ubuntu_debian_mint=$(grep -w 'ID' /etc/os-release | cut -d '=' -f 2)
+if [[ "$ubuntu_debian_mint" == "ubuntu" ]]; then
 	os="ubuntu"
 	os_version=$(grep 'VERSION_ID' /etc/os-release | cut -d '"' -f 2 | tr -d '.')
 	group_name="nogroup"
-elif [[ -e /etc/debian_version ]]; then
+elif [[ "$ubuntu_debian_mint" == "debian" ]]; then
 	os="debian"
 	os_version=$(grep -oE '[0-9]+' /etc/debian_version | head -1)
 	group_name="nogroup"
@@ -38,9 +39,13 @@ elif [[ -e /etc/fedora-release ]]; then
 	os="fedora"
 	os_version=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
 	group_name="nobody"
+elif [[ "$ubuntu_debian_mint" == "linuxmint" ]]; then
+	os="linuxmint"
+	os_version=$(grep 'VERSION_ID' /etc/os-release | cut -d '"' -f 2 | tr -d '.')
+	group_name="nogroup"
 else
 	echo "This installer seems to be running on an unsupported distribution.
-Supported distros are Ubuntu, Debian, AlmaLinux, Rocky Linux, CentOS and Fedora."
+Supported distros are Ubuntu, Debian, LinuxMint, AlmaLinux, Rocky Linux, CentOS and Fedora."
 	exit
 fi
 
@@ -59,6 +64,12 @@ fi
 if [[ "$os" == "centos" && "$os_version" -lt 7 ]]; then
 	echo "CentOS 7 or higher is required to use this installer.
 This version of CentOS is too old and unsupported."
+	exit
+fi
+
+if [[ "$os" == "linuxmint" && "$os_version" -lt 19 ]]; then
+	echo "LinuxMint Tara (19) or higher is required to use this installer.
+This version of LinuxMint is too old and unsupported."
 	exit
 fi
 
@@ -166,10 +177,10 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 		read -p "Protocol [1]: " protocol
 	done
 	case "$protocol" in
-		1|"") 
+		1|"")
 		protocol=udp
 		;;
-		2) 
+		2)
 		protocol=tcp
 		;;
 	esac
@@ -209,7 +220,7 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 			# We don't want to silently enable firewalld, so we give a subtle warning
 			# If the user continues, firewalld will be installed and enabled during setup
 			echo "firewalld, which is required to manage routing tables, will also be installed."
-		elif [[ "$os" == "debian" || "$os" == "ubuntu" ]]; then
+		elif [[ "$os" == "debian" || "$os" == "ubuntu" || "$os" == "linuxmint" ]]; then
 			# iptables is way less invasive than firewalld so no warning is given
 			firewall="iptables"
 		fi
@@ -221,7 +232,7 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 		echo "[Service]
 LimitNPROC=infinity" > /etc/systemd/system/openvpn-server@server.service.d/disable-limitnproc.conf
 	fi
-	if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
+	if [[ "$os" = "debian" || "$os" = "ubuntu" || "$os" = "linuxmint" ]]; then
 		apt-get update
 		apt-get install -y openvpn openssl ca-certificates $firewall
 	elif [[ "$os" = "centos" ]]; then
@@ -544,7 +555,7 @@ else
 				systemctl disable --now openvpn-server@server.service
 				rm -f /etc/systemd/system/openvpn-server@server.service.d/disable-limitnproc.conf
 				rm -f /etc/sysctl.d/99-openvpn-forward.conf
-				if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
+				if [[ "$os" = "debian" || "$os" = "ubuntu" || "$os" = "linuxmint" ]]; then
 					rm -rf /etc/openvpn/server
 					apt-get remove --purge -y openvpn
 				else
